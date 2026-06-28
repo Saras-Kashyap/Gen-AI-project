@@ -37,6 +37,10 @@ This is a complete, self-contained Retrieval-Augmented Generation (RAG) pipeline
    python rag_pipeline.py
    ```
 
+## Custom Data Ingestion
+
+Before starting the pipeline, you can place your own custom document files (such as `.txt`, `.md`, `.csv`, etc.) into the `data/` directory at the root of the project. The pipeline will automatically scan, chunk, embed, and index these files alongside the sample `dataset.json` file.
+
 ## Features
 
 - **Secured Key Management**: Automatically loads the Google API key from the `.env` file via `python-dotenv`.
