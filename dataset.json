@@ -1,0 +1,22 @@
+[
+  {
+    "title": "Introduction to Gemini Models",
+    "text": "Google's Gemini models are built from the ground up to be multimodal, meaning they can generalize and seamlessly understand, operate across, and combine different types of information including text, code, images, audio, and video. The latest model generation includes gemini-2.5-flash and gemini-2.5-pro, offering superior speed, efficiency, and intelligence for agentic tasks."
+  },
+  {
+    "title": "What is Retrieval-Augmented Generation?",
+    "text": "Retrieval-Augmented Generation (RAG) is a technique that combines retrieval of external knowledge with a generative large language model (LLM). Instead of relying solely on the static knowledge stored in its parameters, the model retrieves relevant documents based on the user's query, prepends these documents to the context, and uses the combined context to generate a precise, factual response."
+  },
+  {
+    "title": "Chroma Vector Database",
+    "text": "Chroma is an open-source embedding database designed for developers. Chroma makes it easy to build LLM apps by making embeddings searchable. It provides tools to save embeddings and their metadata, search embeddings, and filter them using query expressions. It can run in-memory, locally on disk, or as a distributed service."
+  },
+  {
+    "title": "LangChain Framework",
+    "text": "LangChain is a framework designed to simplify the creation of applications using large language models. It provides modular components for working with LLMs, prompt templates, chains, agents, memory, and indexes. Chains allow combining multiple components to solve a specific task, such as retrieval chains that connect a vector store to an LLM."
+  },
+  {
+    "title": "Google embedding-2 model details",
+    "text": "The models/gemini-embedding-2 model is an advanced text embedding model provided by Google. It takes a piece of text as input and outputs a high-dimensional vector representation. These embeddings are useful for semantic search, recommendation systems, text classification, and clustering tasks within a RAG pipeline."
+  }
+]

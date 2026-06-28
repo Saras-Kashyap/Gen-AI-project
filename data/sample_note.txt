@@ -1,0 +1,1 @@
+This is a sample note inside the data folder. You can place any text (.txt) or markdown (.md) documents here, and the RAG pipeline will automatically load and index them next time it runs.
