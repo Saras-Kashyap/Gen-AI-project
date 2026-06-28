@@ -9,6 +9,12 @@ This is a complete, self-contained Retrieval-Augmented Generation (RAG) pipeline
 - [requirements.txt](file:///home/saraskashyap/genAI_project/requirements.txt): Python dependency file.
 - [.env.example](file:///home/saraskashyap/genAI_project/.env.example): Environment variable template for your Google API Key.
 
+
+## Custom Data Ingestion
+
+Before starting the pipeline, you can place your own custom document files (such as `.txt`, `.md`, `.csv`, etc.) into the `data/` directory at the root of the project. The pipeline will automatically scan, chunk, embed, and index these files alongside the sample `dataset.json` file.
+
+
 ## Setup Instructions
 
 1. **Create and Activate a Virtual Environment:**
@@ -36,10 +42,6 @@ This is a complete, self-contained Retrieval-Augmented Generation (RAG) pipeline
    ```bash
    python rag_pipeline.py
    ```
-
-## Custom Data Ingestion
-
-Before starting the pipeline, you can place your own custom document files (such as `.txt`, `.md`, `.csv`, etc.) into the `data/` directory at the root of the project. The pipeline will automatically scan, chunk, embed, and index these files alongside the sample `dataset.json` file.
 
 ## Features
 
