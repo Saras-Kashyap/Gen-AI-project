@@ -1,6 +1,8 @@
 import os
 import json
 import sys
+import time
+from typing import List
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -32,6 +34,39 @@ if not GOOGLE_API_KEY:
     print("GOOGLE_API_KEY=your_actual_api_key_here\n")
 
 
+class RateLimitedEmbeddings(GoogleGenerativeAIEmbeddings):
+    """
+    A rate-limited wrapper for GoogleGenerativeAIEmbeddings to prevent
+    RESOURCE_EXHAUSTED errors on the Google Gemini Free Tier.
+    """
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        embeddings = []
+        batch_size = 2
+        total_batches = (len(texts) - 1) // batch_size + 1
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i : i + batch_size]
+            print(f"Embedding batch {i // batch_size + 1} of {total_batches} (size {len(batch)})...")
+            
+            # Simple retry loop (up to 3 retries)
+            for attempt in range(3):
+                try:
+                    batch_embeddings = super().embed_documents(batch)
+                    embeddings.extend(batch_embeddings)
+                    break
+                except Exception as e:
+                    if ("RESOURCE_EXHAUSTED" in str(e) or "429" in str(e)) and attempt < 2:
+                        sleep_time = 35 * (attempt + 1)
+                        print(f"Rate limit hit. Sleeping for {sleep_time}s before retry (attempt {attempt + 1}/3)...")
+                        time.sleep(sleep_time)
+                    else:
+                        raise e
+            
+            # Sleep between batches to stay under free tier rate limits (RPM and TPM)
+            if i + batch_size < len(texts):
+                time.sleep(11)
+        return embeddings
+
+
 def initialize_rag_components():
     """
     Initializes the embedding model and LLM using Google Gemini API.
@@ -41,7 +76,7 @@ def initialize_rag_components():
     # 1. Initialize the embedding model.
     # We use 'models/gemini-embedding-2' as specified.
     # This model maps textual content to high-dimensional dense vectors representing semantic meaning.
-    embeddings = GoogleGenerativeAIEmbeddings(
+    embeddings = RateLimitedEmbeddings(
         model="models/gemini-embedding-2",
         google_api_key=GOOGLE_API_KEY
     )
@@ -61,14 +96,58 @@ def initialize_rag_components():
 # -----------------------------------------------------------------------------
 # PHASE 2: INGESTION PHASE
 # -----------------------------------------------------------------------------
+def extract_text_from_pdf(file_path: Path) -> str:
+    """Extracts text content from a PDF file using pypdf."""
+    try:
+        from pypdf import PdfReader
+        reader = PdfReader(file_path)
+        text = []
+        for page in reader.pages:
+            page_text = page.extract_text()
+            if page_text:
+                text.append(page_text)
+        return "\n".join(text)
+    except Exception as e:
+        print(f"Warning: Error reading PDF {file_path}: {e}")
+        return ""
+
+
+def extract_text_from_docx(file_path: Path) -> str:
+    """Extracts text content from a Word (.docx) file using python-docx."""
+    try:
+        import docx
+        doc = docx.Document(file_path)
+        text = []
+        # Extract paragraphs
+        for para in doc.paragraphs:
+            if para.text.strip():
+                text.append(para.text)
+        # Extract tables
+        for table in doc.tables:
+            for row in table.rows:
+                # Deduplicate cells for merged cells
+                row_cells = []
+                for cell in row.cells:
+                    if not row_cells or row_cells[-1] is not cell:
+                        row_cells.append(cell)
+                row_text = [cell.text.strip() for cell in row_cells if cell.text.strip()]
+                if row_text:
+                    text.append(" | ".join(row_text))
+        return "\n".join(text)
+    except Exception as e:
+        print(f"Warning: Error reading Word document {file_path}: {e}")
+        return ""
+
+
 def ingest_all_data_sources(json_path: str, data_dir_path: str, persist_directory: str, embeddings) -> Chroma:
     """
-    Loads documents from both the JSON dataset and any text/markdown files within
-    the data directory, chunks them, computes embeddings, and stores them in ChromaDB.
+    Loads documents from both the JSON dataset and any supported files within
+    the data directory (text, markdown, PDF, and Word document formats), chunks them,
+    computes embeddings, and stores them in ChromaDB.
     
     Args:
         json_path (str): Path to the source JSON dataset file.
-        data_dir_path (str): Path to the data directory containing text/markdown files.
+        data_dir_path (str): Path to the data directory containing source files.
         persist_directory (str): Directory where ChromaDB will store index files.
         embeddings: The embedding model instance.
         
@@ -114,7 +193,7 @@ def ingest_all_data_sources(json_path: str, data_dir_path: str, persist_director
         except Exception as e:
             print(f"Error loading JSON dataset: {e}")
 
-    # 2. Load files from raw text/markdown directory
+    # 2. Load files from raw files directory
     data_dir = Path(data_dir_path)
     if not data_dir.exists():
         data_dir.mkdir(parents=True, exist_ok=True)
@@ -122,32 +201,43 @@ def ingest_all_data_sources(json_path: str, data_dir_path: str, persist_director
         sample_file = data_dir / "sample_note.txt"
         sample_file.write_text(
             "This is a sample note inside the data folder. "
-            "You can place any text (.txt) or markdown (.md) documents here, "
+            "You can place text (.txt), markdown (.md), PDF (.pdf), or Word (.docx) documents here, "
             "and the RAG pipeline will automatically load and index them next time it runs.",
             encoding="utf-8"
         )
         print(f"Created data directory and sample file at: {sample_file}")
 
-    print(f"Loading custom text/markdown files from: {data_dir_path}...")
+    print(f"Loading custom files (text/markdown/pdf/docx) from: {data_dir_path}...")
     dir_docs = []
-    # Supported text file extensions
-    extensions = {".txt", ".md", ".jsonld", ".csv"}
+    # Supported file extensions
+    extensions = {".txt", ".md", ".jsonld", ".csv", ".pdf", ".docx"}
     for file_path in data_dir.rglob("*"):
-        if file_path.is_file() and file_path.suffix.lower() in extensions:
-            try:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                if content.strip():
-                    dir_docs.append(Document(
-                        page_content=content,
-                        metadata={
-                            "source": str(file_path),
-                            "title": file_path.name,
-                            "file_type": file_path.suffix.lower()
-                        }
-                    ))
-            except Exception as e:
-                print(f"Warning: Could not read file {file_path}: {e}")
+        if file_path.is_file():
+            suffix = file_path.suffix.lower()
+            if suffix in extensions:
+                try:
+                    content = ""
+                    if suffix == ".pdf":
+                        content = extract_text_from_pdf(file_path)
+                    elif suffix == ".docx":
+                        content = extract_text_from_docx(file_path)
+                    else:
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            content = f.read()
+                    
+                    if content.strip():
+                        dir_docs.append(Document(
+                            page_content=content,
+                            metadata={
+                                "source": str(file_path),
+                                "title": file_path.name,
+                                "file_type": suffix
+                            }
+                        ))
+                except Exception as e:
+                    print(f"Warning: Could not read file {file_path}: {e}")
+            elif suffix == ".doc":
+                print(f"Warning: Legacy Word document (.doc) found at '{file_path}'. Please convert it to '.docx' to enable parsing.")
                 
     print(f"Loaded {len(dir_docs)} file(s) from '{data_dir_path}'.")
     documents.extend(dir_docs)
@@ -158,8 +248,8 @@ def ingest_all_data_sources(json_path: str, data_dir_path: str, persist_director
     # 3. Chunking (Text Splitting)
     # Split text to fit context windows and improve retrieval granularity.
     text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=500,
-        chunk_overlap=100,
+        chunk_size=8000,
+        chunk_overlap=800,
         length_function=len
     )
     

@@ -12,7 +12,7 @@ This is a complete, self-contained Retrieval-Augmented Generation (RAG) pipeline
 
 ## Custom Data Ingestion
 
-Before starting the pipeline, you can place your own custom document files (such as `.txt`, `.md`, `.csv`, etc.) into the `data/` directory at the root of the project. The pipeline will automatically scan, chunk, embed, and index these files alongside the sample `dataset.json` file.
+Before starting the pipeline, you can place your own custom document files (such as `.txt`, `.md`, `.pdf`, `.docx`, `.jsonld`, `.csv`, etc.) into the `data/` directory at the root of the project. The pipeline will automatically scan, parse, chunk, embed, and index these files alongside the sample `dataset.json` file.
 
 
 ## Setup Instructions
@@ -45,8 +45,8 @@ Before starting the pipeline, you can place your own custom document files (such
 
 ## Features
 
-- **Secured Key Management**: Automatically loads the Google API key from the `.env` file via `python-dotenv`.
-- **Dynamic Ingestion**: Reads a JSON file, splits documents into overlapping chunks (500 characters chunk size, 100 characters overlap) using the `RecursiveCharacterTextSplitter`.
+- **Multi-Format Ingestion**: Automatically scans, reads, and parses JSON datasets as well as text (`.txt`), markdown (`.md`), PDF (`.pdf`), Word (`.docx`), and CSV (`.csv`) files. Documents are dynamically split into overlapping chunks (8,000 characters chunk size, 800 characters overlap) using the `RecursiveCharacterTextSplitter`.
+- **Robust API Rate-Limiting**: Integrates a custom `RateLimitedEmbeddings` wrapper that batches document embeddings and sleeps between API calls (with automatic retry-backoff) to stay safely under Gemini API free-tier RPM (Requests Per Minute) and TPM (Tokens Per Minute) rate limits.
 - **Vector Storage**: Indexes chunks and generates embeddings via `models/gemini-embedding-2`, storing them in a local ChromaDB instance (`chroma_db`).
 - **Context-Strict Generation**: Uses `gemini-2.5-flash` with a tailored prompt specifying that the model must answer *only* from the provided context or state "I do not know" if the context is insufficient.
 - **Dynamic CLI Loop**: An interactive console prompt allowing users to enter queries and view responses as well as referenced context sources.
